@@ -10,6 +10,7 @@
 #if !PICO_RP2040
 #include "hardware/rcp.h"
 #endif
+#include "pico/runtime_init.h"
 
 /// \tag::table_lookup[]
 
@@ -196,4 +197,207 @@ int rom_pick_ab_partition_during_update(uint32_t *workarea_base, uint32_t workar
 
     return rc;
 }
+
+#if PICO_SECURE || PICO_NONSECURE
+int __noinline rom_secure_call(uint a, uint b, uint c, uint d, uint func) {
+    uint32_t secure_call = (uintptr_t)rom_func_lookup_inline(ROM_FUNC_SECURE_CALL);
+    register uint32_t r0 asm("r0") = a;
+    register uint32_t r1 asm("r1") = b;
+    register uint32_t r2 asm("r2") = c;
+    register uint32_t r3 asm("r3") = d;
+    register uint32_t r4 asm("r4") = func;
+    pico_default_asm_volatile(
+            "push {lr}\n"
+            "blx %0\n"
+            "pop {lr}\n"
+            : : "r" (secure_call), "r"(r0), "r"(r1), "r"(r2), "r"(r3), "r"(r4));
+    return (int)r0;
+}
+
+#if PICO_ALLOW_NONSECURE_STDIO
+#include "pico/stdio/driver.h"
+
+#if PICO_NONSECURE
+static void stdio_nonsecure_out_chars(const char *buf, int length) {
+    rom_secure_call((uint32_t)buf, length, 0, 0, BOOTROM_API_CALLBACK_stdio_out_chars);
+}
+
+int stdio_nonsecure_in_chars(char *buf, int length) {
+    return PICO_ERROR_NO_DATA;
+}
+
+static void stdio_nonsecure_out_flush(void) {}
+
+
+stdio_driver_t stdio_nonsecure = {
+    .out_chars = stdio_nonsecure_out_chars,
+    .out_flush = stdio_nonsecure_out_flush,
+    .in_chars = stdio_nonsecure_in_chars,
+#if PICO_STDIO_ENABLE_CRLF_SUPPORT
+    .crlf_enabled = false, // CRLF is handled by the secure side
 #endif
+};
+
+#if !PICO_RUNTIME_NO_INIT_NONSECURE_STDIO
+void __weak runtime_init_nonsecure_stdio() {
+    stdio_set_driver_enabled(&stdio_nonsecure, true);
+}
+#endif
+
+#if !PICO_RUNTIME_SKIP_INIT_NONSECURE_STDIO
+PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_nonsecure_stdio, PICO_RUNTIME_INIT_NONSECURE_STDIO);
+#endif
+
+#endif // PICO_NONSECURE
+#endif // PICO_ALLOW_NONSECURE_STDIO
+
+#if PICO_ALLOW_NONSECURE_RAND
+#include "pico/rand.h"
+
+#if PICO_NONSECURE
+// override the weak definition
+uint64_t get_rand_64(void) {
+    return rom_secure_call(0, 0, 0, 0, BOOTROM_API_CALLBACK_get_rand_64);
+}
+#endif
+#endif // PICO_ALLOW_NONSECURE_RAND
+
+#if PICO_ALLOW_NONSECURE_DMA
+#include "hardware/dma.h"
+
+#if PICO_SECURE
+static int dma_allocate_unused_channel_for_nonsecure(void) {
+    int chan = dma_claim_unused_channel(false);
+    if (chan < 0) return chan;
+    if (chan > PICO_NONSECURE_DMA_MAX_CHANNEL) {
+        dma_channel_unclaim(chan);
+        return -1;
+    }
+    hw_clear_bits(&dma_hw->seccfg_ch[chan], DMA_SECCFG_CH0_S_BITS | DMA_SECCFG_CH0_LOCK_BITS);
+    return chan;
+}
+#elif PICO_NONSECURE
+int dma_request_unused_channels_from_secure(int num_channels) {
+    int i;
+    for (i = 0; i < num_channels; i++) {
+        int chan = rom_secure_call(0, 0, 0, 0, BOOTROM_API_CALLBACK_dma_allocate_unused_channel_for_nonsecure);
+        if (chan < 0) break;
+        dma_channel_unclaim(chan);
+    }
+    return i;
+}
+#endif
+#endif // PICO_ALLOW_NONSECURE_DMA
+
+#if PICO_ALLOW_NONSECURE_USER_IRQ
+#include "hardware/irq.h"
+
+#if PICO_SECURE
+static int user_irq_claim_unused_for_nonsecure() {
+    int bit = user_irq_claim_unused(false);
+    if (bit < 0) return bit;
+    irq_assign_to_ns(bit, true);
+    return bit;
+}
+#elif PICO_NONSECURE
+int user_irq_request_unused_from_secure(int num_irqs) {
+    int i;
+    for (i = 0; i < num_irqs; i++) {
+        int irq = rom_secure_call(0, 0, 0, 0, BOOTROM_API_CALLBACK_user_irq_claim_unused_for_nonsecure);
+        if (irq < 0) break;
+        user_irq_unclaim(irq);
+    }
+    return i;
+}
+#endif
+
+#endif // PICO_ALLOW_NONSECURE_USER_IRQ
+
+#if !PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
+#include <stdio.h>
+#include "hardware/clocks.h"
+
+int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t fn) {
+    switch (fn) {
+    #if PICO_ALLOW_NONSECURE_STDIO
+        case BOOTROM_API_CALLBACK_stdio_out_chars: {
+            stdio_put_string((char*)a, b, false, true);
+            stdio_flush();
+            return 0;
+        }
+    #endif
+    #if PICO_ALLOW_NONSECURE_RAND
+        case BOOTROM_API_CALLBACK_get_rand_64: {
+            return get_rand_64();
+        }
+    #endif
+    #if PICO_ALLOW_NONSECURE_DMA
+        case BOOTROM_API_CALLBACK_dma_allocate_unused_channel_for_nonsecure: {
+            return dma_allocate_unused_channel_for_nonsecure();
+        }
+    #endif
+    #if PICO_ALLOW_NONSECURE_USER_IRQ
+        case BOOTROM_API_CALLBACK_user_irq_claim_unused_for_nonsecure: {
+            return user_irq_claim_unused_for_nonsecure();
+        }
+    #endif
+        case BOOTROM_API_CALLBACK_clock_get_hz: {
+            return clock_get_hz(a);
+        }
+        default: {
+            printf("%d is not a supported rom function\n", fn);
+            return BOOTROM_ERROR_INVALID_ARG;
+        }
+
+    }
+}
+
+static int __attribute__((naked)) rom_default_asm_callback() {
+    pico_default_asm_volatile(
+        "push {r0, lr}\n"
+        "str r4, [sp]\n"
+        "bl rom_default_callback\n"
+        "pop {r1, pc}\n"
+    );
+}
+
+void __weak runtime_init_rom_set_default_callback() {
+    rom_set_rom_callback(BOOTROM_API_CALLBACK_secure_call, (bootrom_api_callback_generic_t) rom_default_asm_callback);
+}
+#endif // !PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
+
+#if !PICO_RUNTIME_SKIP_INIT_BOOTROM_API_CALLBACK
+PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_rom_set_default_callback, PICO_RUNTIME_INIT_BOOTROM_API_CALLBACK);
+#endif
+
+#if !PICO_RUNTIME_NO_INIT_NONSECURE_CLAIMS
+void __weak runtime_init_nonsecure_claims() {
+    for(uint i = 0; i < NUM_DMA_CHANNELS; i++) {
+        dma_channel_claim(i);
+    }
+
+    for (uint i = 0; i < NUM_USER_IRQS; i++) {
+        user_irq_claim(FIRST_USER_IRQ + i);
+    }
+}
+#endif
+
+#if !PICO_RUNTIME_SKIP_INIT_NONSECURE_CLAIMS
+PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_nonsecure_claims, PICO_RUNTIME_INIT_NONSECURE_CLAIMS);
+#endif
+
+#if PICO_NONSECURE && !PICO_RUNTIME_NO_INIT_CLOCKS
+#include "hardware/clocks.h"
+
+void runtime_init_clocks() {
+    // Set all clocks to the reported frequency from the secure side
+    for (uint i = 0; i < CLK_COUNT; i++) {
+        uint32_t hz = rom_secure_call(i, 0, 0, 0, BOOTROM_API_CALLBACK_clock_get_hz);
+        clock_set_reported_hz(i, hz);
+    }
+}
+#endif
+
+#endif // PICO_SECURE || PICO_NONSECURE
+
+#endif // !PICO_RP2040

@@ -340,6 +340,54 @@ void runtime_init_boot_locks_reset(void);
 void runtime_init_bootrom_locking_enable(void);
 #endif
 
+// ------------------------------
+// Set default bootrom secure callback
+// ------------------------------
+// PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_BOOTROM_API_CALLBACK, Skip calling of `runtime_init_rom_set_default_callback` function during runtime init, type=bool, default=0, group=pico_runtime_init
+#ifndef PICO_RUNTIME_INIT_BOOTROM_API_CALLBACK
+#define PICO_RUNTIME_INIT_BOOTROM_API_CALLBACK "01020"
+#endif
+
+#ifndef PICO_RUNTIME_SKIP_INIT_BOOTROM_API_CALLBACK
+#define PICO_RUNTIME_SKIP_INIT_BOOTROM_API_CALLBACK !PICO_SECURE
+#endif
+
+#ifndef PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
+#define PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK !PICO_SECURE
+#endif
+
+// ------------------------------
+// Initialise non-secure claimed resources
+// ------------------------------
+// PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_NONSECURE_CLAIMS, Skip calling of `runtime_init_nonsecure_claims` function during runtime init, type=bool, default=0, group=pico_runtime_init
+#ifndef PICO_RUNTIME_INIT_NONSECURE_CLAIMS
+#define PICO_RUNTIME_INIT_NONSECURE_CLAIMS "01020"
+#endif
+
+#ifndef PICO_RUNTIME_SKIP_INIT_NONSECURE_CLAIMS
+#define PICO_RUNTIME_SKIP_INIT_NONSECURE_CLAIMS !PICO_NONSECURE
+#endif
+
+#ifndef PICO_RUNTIME_NO_INIT_NONSECURE_CLAIMS
+#define PICO_RUNTIME_NO_INIT_NONSECURE_CLAIMS !PICO_NONSECURE
+#endif
+
+// ------------------------------
+// Initialise non-secure stdio
+// ------------------------------
+// PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_NONSECURE_STDIO, Skip calling of `runtime_init_nonsecure_stdio` function during runtime init, type=bool, default=0, group=pico_runtime_init
+#ifndef PICO_RUNTIME_INIT_NONSECURE_STDIO
+#define PICO_RUNTIME_INIT_NONSECURE_STDIO "20000"
+#endif
+
+#ifndef PICO_RUNTIME_SKIP_INIT_NONSECURE_STDIO
+#define PICO_RUNTIME_SKIP_INIT_NONSECURE_STDIO !PICO_NONSECURE
+#endif
+
+#ifndef PICO_RUNTIME_NO_INIT_NONSECURE_STDIO
+#define PICO_RUNTIME_NO_INIT_NONSECURE_STDIO !PICO_NONSECURE
+#endif
+
 // PICO_RUNTIME_INIT_MUTEX is registered automatically by pico_sync
 // PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_MUTEX, Skip calling of `runtime_init_mutex` function during runtime init, type=bool, default=0, group=pico_runtime_init
 // PICO_CONFIG: PICO_RUNTIME_NO_INIT_MUTEX, Do not include SDK implementation of `runtime_init_mutex` function, type=bool, default=0, group=pico_runtime_init

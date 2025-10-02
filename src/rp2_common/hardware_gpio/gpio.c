@@ -186,7 +186,7 @@ static void _gpio_set_irq_enabled(uint gpio, uint32_t events, bool enabled, io_b
 void gpio_set_irq_enabled(uint gpio, uint32_t events, bool enabled) {
     // either this call disables the interrupt or callback should already be set.
     // this protects against enabling the interrupt without callback set
-    assert(!enabled || irq_has_handler(IO_IRQ_BANK0));
+    assert(!enabled || irq_has_handler(DEFAULT_IO_IRQ_BANK0));
 
     // Separate mask/force/status per-core, so check which core called, and
     // set the relevant IRQ controls.
@@ -201,32 +201,32 @@ void gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled
     if (enabled) gpio_set_irq_callback(callback);
     gpio_set_irq_enabled(gpio, events, enabled);
     if (!enabled) gpio_set_irq_callback(callback);
-    if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
+    if (enabled) irq_set_enabled(DEFAULT_IO_IRQ_BANK0, true);
 }
 
 void gpio_set_irq_callback(gpio_irq_callback_t callback) {
     uint core = get_core_num();
     if (callbacks[core]) {
         if (!callback) {
-            irq_remove_handler(IO_IRQ_BANK0, gpio_default_irq_handler);
+            irq_remove_handler(DEFAULT_IO_IRQ_BANK0, gpio_default_irq_handler);
         }
         callbacks[core] = callback;
     } else if (callback) {
         callbacks[core] = callback;
-        irq_add_shared_handler(IO_IRQ_BANK0, gpio_default_irq_handler, GPIO_IRQ_CALLBACK_ORDER_PRIORITY);
+        irq_add_shared_handler(DEFAULT_IO_IRQ_BANK0, gpio_default_irq_handler, GPIO_IRQ_CALLBACK_ORDER_PRIORITY);
     }
 }
 
 void gpio_add_raw_irq_handler_with_order_priority_masked(uint32_t gpio_mask, irq_handler_t handler, uint8_t order_priority) {
     hard_assert(!(raw_irq_mask[get_core_num()] & gpio_mask)); // should not add multiple handlers for the same event
     raw_irq_mask[get_core_num()] |= gpio_mask;
-    irq_add_shared_handler(IO_IRQ_BANK0, handler, order_priority);
+    irq_add_shared_handler(DEFAULT_IO_IRQ_BANK0, handler, order_priority);
 }
 
 void gpio_add_raw_irq_handler_with_order_priority_masked64(uint64_t gpio_mask, irq_handler_t handler, uint8_t order_priority) {
     hard_assert(!(raw_irq_mask[get_core_num()] & gpio_mask)); // should not add multiple handlers for the same event
     raw_irq_mask[get_core_num()] |= (raw_irq_mask_type_t) gpio_mask;
-    irq_add_shared_handler(IO_IRQ_BANK0, handler, order_priority);
+    irq_add_shared_handler(DEFAULT_IO_IRQ_BANK0, handler, order_priority);
 }
 
 void gpio_add_raw_irq_handler_masked(uint32_t gpio_mask, irq_handler_t handler) {
@@ -239,13 +239,13 @@ void gpio_add_raw_irq_handler_masked64(uint64_t gpio_mask, irq_handler_t handler
 
 void gpio_remove_raw_irq_handler_masked(uint32_t gpio_mask, irq_handler_t handler) {
     assert(raw_irq_mask[get_core_num()] & gpio_mask); // should not remove handlers that are not added
-    irq_remove_handler(IO_IRQ_BANK0, handler);
+    irq_remove_handler(DEFAULT_IO_IRQ_BANK0, handler);
     raw_irq_mask[get_core_num()] &= ~gpio_mask;
 }
 
 void gpio_remove_raw_irq_handler_masked64(uint64_t gpio_mask, irq_handler_t handler) {
     assert(raw_irq_mask[get_core_num()] & gpio_mask); // should not remove handlers that are not added
-    irq_remove_handler(IO_IRQ_BANK0, handler);
+    irq_remove_handler(DEFAULT_IO_IRQ_BANK0, handler);
     raw_irq_mask[get_core_num()] &= (raw_irq_mask_type_t)~gpio_mask;
 }
 

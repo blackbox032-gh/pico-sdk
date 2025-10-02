@@ -341,4 +341,12 @@ typedef struct cflash_flags {
 #define CFLASH_OP_VALUE_READ            _u(2)
 #define CFLASH_OP_MAX                   _u(2)
 
+#ifndef __riscv
+#define BOOTROM_API_CALLBACK_stdio_out_chars 0
+#define BOOTROM_API_CALLBACK_get_rand_64 1
+#define BOOTROM_API_CALLBACK_dma_allocate_unused_channel_for_nonsecure 2
+#define BOOTROM_API_CALLBACK_user_irq_claim_unused_for_nonsecure 3
+#define BOOTROM_API_CALLBACK_clock_get_hz 4
+#endif
+
 #endif

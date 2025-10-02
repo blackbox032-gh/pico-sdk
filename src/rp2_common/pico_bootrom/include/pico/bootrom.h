@@ -1010,6 +1010,63 @@ static inline intptr_t rom_set_rom_callback(uint callback_num, bootrom_api_callb
     return func(callback_num, funcptr);
 }
 
+#ifndef __riscv
+int rom_secure_call(uint a, uint b, uint c, uint d, uint func);
+
+int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t fn);
+
+// PICO_CONFIG: PICO_ALLOW_NONSECURE_STDIO, Allow non-secure to use stdio, type=bool, default=0, group=pico_bootrom
+#ifndef PICO_ALLOW_NONSECURE_STDIO
+#define PICO_ALLOW_NONSECURE_STDIO 0
+#endif
+
+// PICO_CONFIG: PICO_ALLOW_NONSECURE_RAND, Allow non-secure to request random numbers, type=bool, default=0, group=pico_bootrom
+#ifndef PICO_ALLOW_NONSECURE_RAND
+#define PICO_ALLOW_NONSECURE_RAND 0
+#endif
+
+// PICO_CONFIG: PICO_ALLOW_NONSECURE_DMA, Allow non-secure to request DMA channels, type=bool, default=0, group=hardware_dma
+#ifndef PICO_ALLOW_NONSECURE_DMA
+#define PICO_ALLOW_NONSECURE_DMA 0
+#endif
+
+// PICO_CONFIG: PICO_NONSECURE_DMA_MAX_CHANNEL, Highest number DMA channel that can be allocated to non-secure use, type=int, default=NUM_DMA_CHANNELS, group=hardware_dma
+#ifndef PICO_NONSECURE_DMA_MAX_CHANNEL
+#define PICO_NONSECURE_DMA_MAX_CHANNEL NUM_DMA_CHANNELS
+#endif
+
+#if PICO_ALLOW_NONSECURE_DMA && PICO_NONSECURE
+/*! \brief Request unused dma channels from secure
+ *  \ingroup hardware_dma
+ *
+ * \param num_channels the number of channels to request
+ * \return the number of channels provided
+ */
+int dma_request_unused_channels_from_secure(int num_channels);
+#endif
+
+// PICO_CONFIG: PICO_ALLOW_USER_IRQ, Allow non-secure to request user IRQs, type=bool, default=0, group=hardware_irq
+#ifndef PICO_ALLOW_NONSECURE_USER_IRQ
+#define PICO_ALLOW_NONSECURE_USER_IRQ 0
+#endif
+
+// PICO_CONFIG: PICO_NONSECURE_USER_IRQ_MIN, Lowest number user IRQ that can be allocated to non-secure use, type=int, default=FIRST_USER_IRQ, group=hardware_irq
+#ifndef PICO_NONSECURE_USER_IRQ_MIN
+#define PICO_NONSECURE_USER_IRQ_MIN FIRST_USER_IRQ
+#endif
+
+#if PICO_ALLOW_NONSECURE_USER_IRQ && PICO_NONSECURE
+/*! \brief Request unused user IRQs from secure
+ *  \ingroup hardware_irq
+ *
+ * \param num_irqs the number of IRQs to request
+ * \return the number of IRQs provided
+ */
+int user_irq_request_unused_from_secure(int num_irqs);
+#endif
+
+#endif
+
 #define BOOT_TYPE_NORMAL     0
 #define BOOT_TYPE_BOOTSEL    2
 #define BOOT_TYPE_RAM_IMAGE  3

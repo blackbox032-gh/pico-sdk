@@ -18,6 +18,14 @@
 #define PICO_USE_GPIO_COPROCESSOR 1
 #endif
 
+
+#if PICO_NONSECURE
+#define DEFAULT_IO_IRQ_BANK0 IO_IRQ_BANK0_NS
+#else
+#define DEFAULT_IO_IRQ_BANK0 IO_IRQ_BANK0
+#endif
+
+
 #if PICO_USE_GPIO_COPROCESSOR
 #include "hardware/gpio_coproc.h"
 #endif
