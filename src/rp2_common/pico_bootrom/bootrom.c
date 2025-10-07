@@ -9,6 +9,8 @@
 #include "boot/picobin.h"
 #if !PICO_RP2040
 #include "hardware/rcp.h"
+#include "hardware/flash.h"
+#include "hardware/structs/qmi.h"
 #endif
 #include "pico/runtime_init.h"
 
@@ -196,6 +198,77 @@ int rom_pick_ab_partition_during_update(uint32_t *workarea_base, uint32_t workar
     }
 
     return rc;
+}
+
+int rom_get_owned_partition(uint partition_num) {
+    int ret;
+    uint32_t buffer[(16 * 2) + 1] = {}; // maximum of 16 partitions, each with 2 words returned, plus 1
+    // Initially assume that the partition_num is the A partition
+    int partition_a_num = partition_num;
+    ret = rom_get_b_partition(partition_num);
+
+    if (ret < 0) {
+        // partition_num is actually the B partition, so read the A partition
+        ret = rom_get_partition_table_info(buffer, count_of(buffer), PT_INFO_PARTITION_LOCATION_AND_FLAGS | PT_INFO_SINGLE_PARTITION | (partition_num << 24));
+        if (ret < 0) return ret;
+
+        uint32_t flags_and_permissions = buffer[2];
+        if ((flags_and_permissions & PICOBIN_PARTITION_FLAGS_LINK_TYPE_BITS) >> PICOBIN_PARTITION_FLAGS_LINK_TYPE_LSB != PICOBIN_PARTITION_FLAGS_LINK_TYPE_A_PARTITION) return BOOTROM_ERROR_NOT_FOUND;
+        partition_a_num = (flags_and_permissions & PICOBIN_PARTITION_FLAGS_LINK_VALUE_BITS) >> PICOBIN_PARTITION_FLAGS_LINK_VALUE_LSB;
+    }
+
+    ret = rom_get_partition_table_info(buffer, count_of(buffer), PT_INFO_PARTITION_LOCATION_AND_FLAGS);
+    if (ret < 0) return ret;
+
+    int num_partitions = (ret - 1) / 2;
+
+    int owned_a_num;
+    for (owned_a_num = 0; owned_a_num < num_partitions; owned_a_num++) {
+        uint32_t flags_and_permissions = buffer[owned_a_num * 2 + 2];
+        if (
+            (flags_and_permissions & PICOBIN_PARTITION_FLAGS_LINK_TYPE_BITS) >> PICOBIN_PARTITION_FLAGS_LINK_TYPE_LSB == PICOBIN_PARTITION_FLAGS_LINK_TYPE_OWNER_PARTITION &&
+            (flags_and_permissions & PICOBIN_PARTITION_FLAGS_LINK_VALUE_BITS) >> PICOBIN_PARTITION_FLAGS_LINK_VALUE_LSB == partition_a_num
+        ) {
+            break;
+        }
+    }
+
+    if (owned_a_num == num_partitions) return BOOTROM_ERROR_NOT_FOUND;
+
+    if (partition_num == partition_a_num)
+        return owned_a_num;
+    else
+        return rom_get_b_partition(owned_a_num);
+}
+
+int rom_roll_qmi_to_partition(uint partition_num) {
+    uint32_t buffer[2 + 1] = {}; // 2 words for the partition location and flags, plus 1
+    int ret = rom_get_partition_table_info(buffer, count_of(buffer), PT_INFO_PARTITION_LOCATION_AND_FLAGS | PT_INFO_SINGLE_PARTITION | (partition_num << 24));
+    if (ret < 0) return ret;
+
+    uint32_t location_and_permissions = buffer[1];
+    uint32_t saddr = ((location_and_permissions >> PICOBIN_PARTITION_LOCATION_FIRST_SECTOR_LSB) & 0x1fffu) * FLASH_SECTOR_SIZE;
+    uint32_t eaddr = (((location_and_permissions >> PICOBIN_PARTITION_LOCATION_LAST_SECTOR_LSB) & 0x1fffu) + 1) * FLASH_SECTOR_SIZE;
+
+    int32_t roll = (int32_t)saddr;
+    if (roll) {
+        if ((uint32_t)roll & (FLASH_SECTOR_SIZE - 1u)) return BOOTROM_ERROR_BAD_ALIGNMENT;
+        roll >>= FLASH_SECTOR_SHIFT;
+        int32_t size = (int32_t)((eaddr - saddr) >> FLASH_SECTOR_SHIFT);
+        for (uint i = 0; i < 4; i++) {
+            static_assert(4 * 1024 * 1024 / FLASH_SECTOR_SIZE == 0x400, "Expected 4 MiB / FLASH_SECTOR_SIZE = 0x400");
+            if (roll < 0) {
+                roll += 0x400;
+                qmi_hw->atrans[i] = 0;
+            } else {
+                int32_t this_size = MIN(size, 0x400);
+                qmi_hw->atrans[i] = (uint)((this_size << 16) | roll);
+                size -= this_size;
+                roll += this_size;
+            }
+        }
+    }
+    return BOOTROM_OK;
 }
 
 #if PICO_SECURE || PICO_NONSECURE

@@ -638,6 +638,21 @@ static inline int rom_flash_op(cflash_flags_t flags, uintptr_t addr, uint32_t si
     }
 }
 
+
+/*!
+ * \brief Roll QMI to a partition
+ * \ingroup pico_bootrom
+ *
+ * Rolls the QMI to the specified partition, enabling access to the partition via the translated XIP windows.
+ *
+ * This is necessary when the partition is not stored at the flash address it was linked at, e.g. when
+ * using A/B partitions.
+ * 
+ * \param partition_num the partition number
+ * \return BOOTROM_OK on success, otherwise a negative error code
+ */
+int rom_roll_qmi_to_partition(uint partition_num);
+
 /*!
  * \brief Writes data from a buffer into OTP, or reads data from OTP into a buffer
  * \ingroup pico_bootrom
@@ -800,14 +815,29 @@ int rom_pick_ab_partition_during_update(uint32_t *workarea_base, uint32_t workar
  * \ingroup pico_bootrom
  *
  * Returns the index of the B partition of partition A if a partition table is present and loaded, and there is a partition A with a B partition;
- * otherwise returns BOOTROM_ERROR_NOT_FOUND.
+ * otherwise returns a negative error code.
  * 
  * \param pi_a the A partition number
+ * \return >= 0 the index of the B partition
+ *         BOOTROM_ERROR_NOT_FOUND if the partition number does not have a B partition
  */
 static inline int rom_get_b_partition(uint pi_a) {
     rom_get_b_partition_fn func = (rom_get_b_partition_fn) rom_func_lookup_inline(ROM_FUNC_GET_B_PARTITION);
     return func(pi_a);
 }
+
+/*!
+ * \brief Get Owned Partition
+ * \ingroup pico_bootrom
+ *
+ * Returns the index of the matching owned partition if a partition table is present and loaded, and the partition number has an owned
+ * partition; otherwise returns a negative error code.
+ * 
+ * \param partition_num the partition number
+ * \return >= 0 the index of the matching owned partition
+ *         BOOTROM_ERROR_NOT_FOUND if the partition number does not have an owned partition
+ */
+int rom_get_owned_partition(uint partition_num);
 
 // todo SECURE only
 /*!
