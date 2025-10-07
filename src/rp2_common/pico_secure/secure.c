@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <stdio.h>
 #include "pico/secure.h"
 #include "pico/runtime_init.h"
 
 #include "hardware/timer.h"
 #include "hardware/irq.h"
+#include "hardware/exception.h"
 
 #include "hardware/structs/scb.h"
 #include "hardware/structs/sau.h"
@@ -53,6 +55,75 @@ void secure_sau_set_enabled(bool enabled) {
 
     __dsb();
     __isb();
+}
+
+
+static secure_hardfault_callback_t hardfault_callback = NULL;
+
+
+static void secure_hardfault_handler(void) {
+    printf("Hard fault occurred\n");
+
+    // # First eight values on stack will always be:
+    // # r0, r1, r2, r3, r12, LR, pc, xPSR
+
+    uint32_t sp;
+    pico_default_asm_volatile(
+        "mrs %0, msp_ns"
+        : "=r" (sp)
+    );
+
+    printf("sp:   %08x\n", sp);
+    printf("r0:   %08x\n", *((uint32_t*)sp + 0));
+    printf("r1:   %08x\n", *((uint32_t*)sp + 1));
+    printf("r2:   %08x\n", *((uint32_t*)sp + 2));
+    printf("r3:   %08x\n", *((uint32_t*)sp + 3));
+    printf("r12:  %08x\n", *((uint32_t*)sp + 4));
+    printf("lr:   %08x\n", *((uint32_t*)sp + 5));
+    printf("pc:   %08x\n", *((uint32_t*)sp + 6));
+    printf("xPSR: %08x\n", *((uint32_t*)sp + 7));
+
+    if (scb_hw->hfsr & M33_HFSR_DEBUGEVT_BITS) printf("HardFault: Debug Event\n");
+    if (scb_hw->hfsr & M33_HFSR_FORCED_BITS) printf("HardFault: Forced\n");
+    if (scb_hw->hfsr & M33_HFSR_VECTTBL_BITS) printf("HardFault: Vector Table Read Error\n");
+
+    if (m33_hw->sfsr & M33_SFSR_LSERR_BITS) printf("SecureFault: Error occurred during lazy state activation/deactivation\n");
+    if (m33_hw->sfsr & M33_SFSR_LSPERR_BITS) printf("SecureFault: Error occurred during lazy preservation of floating-point state\n");
+    if (m33_hw->sfsr & M33_SFSR_INVTRAN_BITS) printf("SecureFault: Secure branched to Non-secure code\n");
+    if (m33_hw->sfsr & M33_SFSR_AUVIOL_BITS) printf("SecureFault: Non-secure accessed Secure memory\n");
+    if (m33_hw->sfsr & M33_SFSR_INVER_BITS) printf("SecureFault: Invalid Non-secure exception state when returning\n");
+    if (m33_hw->sfsr & M33_SFSR_INVIS_BITS) printf("SecureFault: Invalid integrity signature in exception stack\n");
+    if (m33_hw->sfsr & M33_SFSR_INVEP_BITS) printf("SecureFault: Non-secure branched to Secure code\n");
+    if (m33_hw->sfsr & M33_SFSR_SFARVALID_BITS) printf("SecureFault address: %08x\n", m33_hw->sfar);
+
+    if (scb_hw->cfsr & M33_CFSR_UFSR_DIVBYZERO_BITS) printf("UsageFault: Division by zero\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_UNALIGNED_BITS) printf("UsageFault: Unaligned access\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_STKOF_BITS) printf("UsageFault: Stack overflow\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_NOCP_BITS) printf("UsageFault: No Coprocessor\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_INVPC_BITS) printf("UsageFault: Invalid PC\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_INVSTATE_BITS) printf("UsageFault: Invalid state\n");
+    if (scb_hw->cfsr & M33_CFSR_UFSR_UNDEFINSTR_BITS) printf("UsageFault: Undefined instruction\n");
+
+    if (scb_hw->cfsr & M33_CFSR_BFSR_LSPERR_BITS) printf("BusFault: Error occurred during lazy preservation of floating-point state\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_STKERR_BITS) printf("BusFault: Error occurred during exception entry stacking\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_UNSTKERR_BITS) printf("BusFault: Error occurred during exception return unstacking\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_IMPRECISERR_BITS) printf("BusFault: Imprecise data access error\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_PRECISERR_BITS) printf("BusFault: Precise data access error\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_IBUSERR_BITS) printf("BusFault: Bus fault on instruction prefetch\n");
+    if (scb_hw->cfsr & M33_CFSR_BFSR_BFARVALID_BITS) printf("BusFault address: %08x\n", scb_hw->bfar);
+
+    if (scb_hw->cfsr & M33_CFSR_MMFSR_BITS) printf("MemManageFault: %02x\n", scb_hw->cfsr & M33_CFSR_MMFSR_BITS);
+    if (scb_hw->cfsr & 0x80) printf("MemManageFault address: %08x\n", scb_hw->mmfar);
+
+    if (hardfault_callback) {
+        hardfault_callback();
+    }
+}
+
+
+void secure_install_default_hardfault_handler(secure_hardfault_callback_t callback) {
+    hardfault_callback = callback;
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, secure_hardfault_handler);
 }
 
 

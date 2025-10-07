@@ -46,6 +46,16 @@ void secure_sau_configure_region(uint region, uint32_t base, uint32_t limit, boo
 void secure_sau_set_enabled(bool enabled);
 
 
+typedef void (*secure_hardfault_callback_t)(void);
+
+/*! \brief  Install default hardfault handler
+ *  \ingroup pico_secure
+ *
+ * \param callback The callback to call when a hardfault occurs after printing the information
+ */
+void secure_install_default_hardfault_handler(secure_hardfault_callback_t callback);
+
+
 #ifdef __cplusplus
 }
 #endif
