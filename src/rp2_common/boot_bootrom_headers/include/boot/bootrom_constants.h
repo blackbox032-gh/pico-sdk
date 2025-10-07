@@ -347,6 +347,7 @@ typedef struct cflash_flags {
 #define BOOTROM_API_CALLBACK_dma_allocate_unused_channel_for_nonsecure 2
 #define BOOTROM_API_CALLBACK_user_irq_claim_unused_for_nonsecure 3
 #define BOOTROM_API_CALLBACK_clock_get_hz 4
+#define BOOTROM_API_CALLBACK_pio_claim_unused_pio_for_nonsecure 5
 #endif
 
 #endif

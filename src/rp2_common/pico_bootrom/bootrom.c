@@ -313,6 +313,62 @@ int user_irq_request_unused_from_secure(int num_irqs) {
 
 #endif // PICO_ALLOW_NONSECURE_USER_IRQ
 
+#if PICO_ALLOW_NONSECURE_PIO
+#include "hardware/pio.h"
+#include "hardware/irq.h"
+#include "hardware/structs/accessctrl.h"
+
+#if PICO_SECURE
+static int pio_claim_unused_pio_for_nonsecure(void) {
+    // Find completely unused PIO
+    uint pio;
+    for (pio = 0; pio < PICO_NONSECURE_PIO_MAX; pio++) {
+        // We need to claim an SM on the PIO
+        int8_t sm_index[NUM_PIO_STATE_MACHINES];
+        // on second pass, if there is one, we try and claim all the state machines so that we can change the GPIO base
+        uint num_claimed;
+        for(num_claimed = 0; num_claimed < NUM_PIO_STATE_MACHINES ; num_claimed++) {
+            sm_index[num_claimed] = (int8_t)pio_claim_unused_sm(pio_get_instance(pio), false);
+            if (sm_index[num_claimed] < 0) break;
+        }
+
+        if (num_claimed != NUM_PIO_STATE_MACHINES) {
+            // un-claim all the SMs
+            for (uint i = 0; i < num_claimed; i++) {
+                pio_sm_unclaim(pio_get_instance(pio), (uint) sm_index[i]);
+            }
+            continue;
+        }
+
+        break;
+    }
+    
+    if (pio == PICO_NONSECURE_PIO_MAX) {
+        return -1;
+    }
+
+    // Accessctrl and IRQs
+    accessctrl_hw->pio[pio] |= 0xacce0000 | ACCESSCTRL_PIO0_NSP_BITS | ACCESSCTRL_PIO0_NSU_BITS;
+
+    static_assert(PIO0_IRQ_0 + 2 == PIO1_IRQ_0, "Expected 2 IRQs per PIO");
+
+    irq_assign_to_ns(PIO0_IRQ_0 + pio * 2, true);
+    irq_assign_to_ns(PIO0_IRQ_1 + pio * 2, true);
+
+    return pio;
+}
+#elif PICO_NONSECURE
+int pio_request_unused_pio_from_secure(void) {
+    int pio = rom_secure_call(0, 0, 0, 0, BOOTROM_API_CALLBACK_pio_claim_unused_pio_for_nonsecure);
+    if (pio < 0) return pio;
+    for (uint sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++) {
+        pio_sm_unclaim(pio_get_instance(pio), sm);
+    }
+    return pio;
+}
+#endif
+#endif // PICO_ALLOW_NONSECURE_PIO
+
 #if !PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
 #include <stdio.h>
 #include "hardware/clocks.h"
@@ -341,6 +397,11 @@ int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_
             return user_irq_claim_unused_for_nonsecure();
         }
     #endif
+    #if PICO_ALLOW_NONSECURE_PIO
+        case BOOTROM_API_CALLBACK_pio_claim_unused_pio_for_nonsecure: {
+            return pio_claim_unused_pio_for_nonsecure();
+        }
+    #endif
         case BOOTROM_API_CALLBACK_clock_get_hz: {
             return clock_get_hz(a);
         }
@@ -363,6 +424,8 @@ static int __attribute__((naked)) rom_default_asm_callback() {
 
 void __weak runtime_init_rom_set_default_callback() {
     rom_set_rom_callback(BOOTROM_API_CALLBACK_secure_call, (bootrom_api_callback_generic_t) rom_default_asm_callback);
+
+    rom_set_ns_api_permission(BOOTROM_NS_API_secure_call, true);
 }
 #endif // !PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
 
@@ -372,13 +435,23 @@ PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_rom_set_default_callback, PICO_RUNTI
 
 #if !PICO_RUNTIME_NO_INIT_NONSECURE_CLAIMS
 void __weak runtime_init_nonsecure_claims() {
+#if PICO_ALLOW_NONSECURE_DMA
     for(uint i = 0; i < NUM_DMA_CHANNELS; i++) {
         dma_channel_claim(i);
     }
-
+#endif
+#if PICO_ALLOW_NONSECURE_USER_IRQ
     for (uint i = 0; i < NUM_USER_IRQS; i++) {
         user_irq_claim(FIRST_USER_IRQ + i);
     }
+#endif
+#if PICO_ALLOW_NONSECURE_PIO
+    for (uint pio = 0; pio < NUM_PIOS; pio++) {
+        for (uint sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++) {
+            pio_sm_claim(pio_get_instance(pio), sm);
+        }
+    }
+#endif
 }
 #endif
 
@@ -386,10 +459,30 @@ void __weak runtime_init_nonsecure_claims() {
 PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_nonsecure_claims, PICO_RUNTIME_INIT_NONSECURE_CLAIMS);
 #endif
 
+#if !PICO_RUNTIME_NO_INIT_NONSECURE_COPROCESSORS
+#include "hardware/structs/m33.h"
+void __weak runtime_init_nonsecure_coprocessors() {
+    // Enable NS coprocessor access to anything secure has enabled
+    uint32_t cpacr = arm_cpu_hw->cpacr;
+    uint32_t nsacr = 0;
+    for (int i = 0; i < 16; i++) {
+        if (cpacr & (M33_CPACR_CP0_BITS << (i * M33_CPACR_CP1_LSB))) {
+            nsacr |= (0x1 << i);
+        }
+    }
+    arm_cpu_hw->nsacr |= nsacr;
+}
+#endif
+
+#if !PICO_RUNTIME_SKIP_INIT_NONSECURE_COPROCESSORS
+PICO_RUNTIME_INIT_FUNC_PER_CORE(runtime_init_nonsecure_coprocessors, PICO_RUNTIME_INIT_NONSECURE_COPROCESSORS);
+#endif
+
+
 #if PICO_NONSECURE && !PICO_RUNTIME_NO_INIT_CLOCKS
 #include "hardware/clocks.h"
 
-void runtime_init_clocks() {
+void runtime_init_clocks() { // override the default weak definition
     // Set all clocks to the reported frequency from the secure side
     for (uint i = 0; i < CLK_COUNT; i++) {
         uint32_t hz = rom_secure_call(i, 0, 0, 0, BOOTROM_API_CALLBACK_clock_get_hz);

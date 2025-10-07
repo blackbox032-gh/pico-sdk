@@ -388,6 +388,22 @@ void runtime_init_bootrom_locking_enable(void);
 #define PICO_RUNTIME_NO_INIT_NONSECURE_STDIO !PICO_NONSECURE
 #endif
 
+// ------------------------------
+// Initialise non-secure coprocessors
+// ------------------------------
+// PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_NONSECURE_COPROCESSORS, Skip calling of `runtime_init_nonsecure_coprocessors` function during runtime init, type=bool, default=0, group=pico_runtime_init
+#ifndef PICO_RUNTIME_INIT_NONSECURE_COPROCESSORS
+#define PICO_RUNTIME_INIT_NONSECURE_COPROCESSORS "00210"
+#endif
+
+#ifndef PICO_RUNTIME_SKIP_INIT_NONSECURE_COPROCESSORS
+#define PICO_RUNTIME_SKIP_INIT_NONSECURE_COPROCESSORS !PICO_SECURE
+#endif
+
+#ifndef PICO_RUNTIME_NO_INIT_NONSECURE_COPROCESSORS
+#define PICO_RUNTIME_NO_INIT_NONSECURE_COPROCESSORS !PICO_SECURE
+#endif
+
 // PICO_RUNTIME_INIT_MUTEX is registered automatically by pico_sync
 // PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_MUTEX, Skip calling of `runtime_init_mutex` function during runtime init, type=bool, default=0, group=pico_runtime_init
 // PICO_CONFIG: PICO_RUNTIME_NO_INIT_MUTEX, Do not include SDK implementation of `runtime_init_mutex` function, type=bool, default=0, group=pico_runtime_init

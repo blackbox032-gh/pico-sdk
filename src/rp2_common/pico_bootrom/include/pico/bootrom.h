@@ -1030,7 +1030,7 @@ int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_
 #define PICO_ALLOW_NONSECURE_DMA 0
 #endif
 
-// PICO_CONFIG: PICO_NONSECURE_DMA_MAX_CHANNEL, Highest number DMA channel that can be allocated to non-secure use, type=int, default=NUM_DMA_CHANNELS, group=hardware_dma
+// PICO_CONFIG: PICO_NONSECURE_DMA_MAX_CHANNEL, Max number of DMA channels that can be allocated to non-secure use, type=int, default=NUM_DMA_CHANNELS, group=hardware_dma
 #ifndef PICO_NONSECURE_DMA_MAX_CHANNEL
 #define PICO_NONSECURE_DMA_MAX_CHANNEL NUM_DMA_CHANNELS
 #endif
@@ -1063,6 +1063,25 @@ int dma_request_unused_channels_from_secure(int num_channels);
  * \return the number of IRQs provided
  */
 int user_irq_request_unused_from_secure(int num_irqs);
+#endif
+
+// PICO_CONFIG: PICO_ALLOW_NONSECURE_PIO, Allow non-secure to request PIOs, type=bool, default=0, group=hardware_pio
+#ifndef PICO_ALLOW_NONSECURE_PIO
+#define PICO_ALLOW_NONSECURE_PIO 0
+#endif
+
+// PICO_CONFIG: PICO_NONSECURE_PIO_MAX, Max number of PIOs that can be allocated to non-secure use, type=int, default=NUM_PIOS, group=hardware_pio
+#ifndef PICO_NONSECURE_PIO_MAX
+#define PICO_NONSECURE_PIO_MAX NUM_PIOS
+#endif
+
+#if PICO_ALLOW_NONSECURE_PIO && PICO_NONSECURE
+/*! \brief Request unused PIO from secure
+ *  \ingroup hardware_pio
+ *
+ * \return the PIO number
+ */
+int pio_request_unused_pio_from_secure(void);
 #endif
 
 #endif
