@@ -118,6 +118,7 @@ if (NOT PICO_BARE_METAL)
 
     if (NOT PICO_RISCV)
          pico_add_subdirectory(rp2_common/cmsis)
+         pico_add_subdirectory(rp2_common/pico_secure)
     endif()
     pico_add_subdirectory(rp2_common/tinyusb)
     pico_add_subdirectory(rp2_common/pico_stdio_usb)

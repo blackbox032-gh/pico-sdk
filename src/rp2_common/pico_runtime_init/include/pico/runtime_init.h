@@ -404,6 +404,22 @@ void runtime_init_bootrom_locking_enable(void);
 #define PICO_RUNTIME_NO_INIT_NONSECURE_COPROCESSORS !PICO_SECURE
 #endif
 
+// ------------------------------
+// Initialise non-secure accessctrl
+// ------------------------------
+// PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_NONSECURE_ACCESSCTRL_AND_IRQS, Skip calling of `runtime_init_nonsecure_accessctrl_and_irqs` function during runtime init, type=bool, default=0, group=pico_runtime_init
+#ifndef PICO_RUNTIME_INIT_NONSECURE_ACCESSCTRL_AND_IRQS
+#define PICO_RUNTIME_INIT_NONSECURE_ACCESSCTRL_AND_IRQS "00220"
+#endif
+
+#ifndef PICO_RUNTIME_SKIP_INIT_NONSECURE_ACCESSCTRL_AND_IRQS
+#define PICO_RUNTIME_SKIP_INIT_NONSECURE_ACCESSCTRL_AND_IRQS !PICO_SECURE
+#endif
+
+#ifndef PICO_RUNTIME_NO_INIT_NONSECURE_ACCESSCTRL_AND_IRQS
+#define PICO_RUNTIME_NO_INIT_NONSECURE_ACCESSCTRL_AND_IRQS !PICO_SECURE
+#endif
+
 // PICO_RUNTIME_INIT_MUTEX is registered automatically by pico_sync
 // PICO_CONFIG: PICO_RUNTIME_SKIP_INIT_MUTEX, Skip calling of `runtime_init_mutex` function during runtime init, type=bool, default=0, group=pico_runtime_init
 // PICO_CONFIG: PICO_RUNTIME_NO_INIT_MUTEX, Do not include SDK implementation of `runtime_init_mutex` function, type=bool, default=0, group=pico_runtime_init

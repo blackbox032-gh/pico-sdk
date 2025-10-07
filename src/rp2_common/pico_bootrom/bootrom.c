@@ -370,10 +370,6 @@ int pio_request_unused_pio_from_secure(void) {
 #endif
 #endif // PICO_ALLOW_NONSECURE_PIO
 
-#if PICO_ADD_NONSECURE_PADS_HELPER
-#include "hardware/structs/pads_bank0.h"
-#endif // PICO_ADD_NONSECURE_PADS_HELPER
-
 #if !PICO_RUNTIME_NO_INIT_BOOTROM_API_CALLBACK
 #include <stdio.h>
 #include "hardware/clocks.h"
@@ -411,33 +407,28 @@ int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_
     #if PICO_ADD_NONSECURE_PADS_HELPER
         case BOOTROM_API_CALLBACK_pads_bank0_set_bits: {
             if (accessctrl_hw->gpio_nsmask[a/32] & 1u << (a & 0x1fu)) {
-                hw_set_bits(&pads_bank0_hw->io[a], b);
-                return 0;
+                return pads_bank0_set_bits(a, b);
             } else {
                 return BOOTROM_ERROR_NOT_PERMITTED;
             }
         }
         case BOOTROM_API_CALLBACK_pads_bank0_clear_bits: {
             if (accessctrl_hw->gpio_nsmask[a/32] & 1u << (a & 0x1fu)) {
-                hw_clear_bits(&pads_bank0_hw->io[a], b);
-                return 0;
+                return pads_bank0_clear_bits(a, b);
             } else {
                 return BOOTROM_ERROR_NOT_PERMITTED;
             }
-            return 0;
         }
         case BOOTROM_API_CALLBACK_pads_bank0_write_masked: {
             if (accessctrl_hw->gpio_nsmask[a/32] & 1u << (a & 0x1fu)) {
-                hw_write_masked(&pads_bank0_hw->io[a], b, c);
-                return 0;
+                return pads_bank0_write_masked(a, b, c);
             } else {
                 return BOOTROM_ERROR_NOT_PERMITTED;
             }
-            return 0;
         }
         case BOOTROM_API_CALLBACK_pads_bank0_read: {
             if (accessctrl_hw->gpio_nsmask[a/32] & 1u << (a & 0x1fu)) {
-                return pads_bank0_hw->io[a];
+                return pads_bank0_read(a);
             } else {
                 return BOOTROM_ERROR_NOT_PERMITTED;
             }
@@ -499,26 +490,6 @@ void __weak runtime_init_nonsecure_claims() {
 #if !PICO_RUNTIME_SKIP_INIT_NONSECURE_CLAIMS
 PICO_RUNTIME_INIT_FUNC_RUNTIME(runtime_init_nonsecure_claims, PICO_RUNTIME_INIT_NONSECURE_CLAIMS);
 #endif
-
-#if !PICO_RUNTIME_NO_INIT_NONSECURE_COPROCESSORS
-#include "hardware/structs/m33.h"
-void __weak runtime_init_nonsecure_coprocessors() {
-    // Enable NS coprocessor access to anything secure has enabled
-    uint32_t cpacr = arm_cpu_hw->cpacr;
-    uint32_t nsacr = 0;
-    for (int i = 0; i < 16; i++) {
-        if (cpacr & (M33_CPACR_CP0_BITS << (i * M33_CPACR_CP1_LSB))) {
-            nsacr |= (0x1 << i);
-        }
-    }
-    arm_cpu_hw->nsacr |= nsacr;
-}
-#endif
-
-#if !PICO_RUNTIME_SKIP_INIT_NONSECURE_COPROCESSORS
-PICO_RUNTIME_INIT_FUNC_PER_CORE(runtime_init_nonsecure_coprocessors, PICO_RUNTIME_INIT_NONSECURE_COPROCESSORS);
-#endif
-
 
 #if PICO_NONSECURE && !PICO_RUNTIME_NO_INIT_CLOCKS
 #include "hardware/clocks.h"

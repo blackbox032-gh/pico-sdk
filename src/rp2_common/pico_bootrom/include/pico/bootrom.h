@@ -21,6 +21,8 @@
 #include <string.h>
 #include "pico/bootrom/lock.h"
 #include "pico/flash.h"
+
+#include "hardware/structs/pads_bank0.h"
 // ROM FUNCTION SIGNATURES
 
 #if PICO_RP2040
@@ -1084,19 +1086,23 @@ int user_irq_request_unused_from_secure(int num_irqs);
 int pio_request_unused_pio_from_secure(void);
 #endif
 
-// PICO_CONFIG: PICO_ADD_NONSECURE_PADS_HELPER, Add non-secure helper functions for PADS_BANK0, type=bool, default=1 on RP2350A A2, group=hardware_pads
-#ifndef PICO_ADD_NONSECURE_PADS_HELPER
-#define PICO_ADD_NONSECURE_PADS_HELPER PICO_RP2350A && PICO_RP2350_A2_SUPPORTED
+// PICO_CONFIG: PICO_ALLOW_NONSECURE_GPIO, Allow non-secure to access GPIO, type=bool, default=0, group=hardware_gpio
+#ifndef PICO_ALLOW_NONSECURE_GPIO
+#define PICO_ALLOW_NONSECURE_GPIO 0
 #endif
 
-#if PICO_NONSECURE
+// PICO_CONFIG: PICO_ADD_NONSECURE_PADS_HELPER, Add non-secure helper functions for PADS_BANK0, type=bool, default=1 on RP2350A A2, group=hardware_pads
+#ifndef PICO_ADD_NONSECURE_PADS_HELPER
+#define PICO_ADD_NONSECURE_PADS_HELPER PICO_RP2350A && PICO_RP2350_A2_SUPPORTED && PICO_ALLOW_NONSECURE_GPIO
+#endif
+
 /*! \brief Set bits in PADS_BANK0
  *  \ingroup hardware_pads
  *
  * \param gpio the GPIO number
  * \param bits the bits to set
  */
-#if PICO_ADD_NONSECURE_PADS_HELPER
+#if PICO_ADD_NONSECURE_PADS_HELPER && PICO_NONSECURE
 static inline int pads_bank0_set_bits(uint gpio, uint bits) {
     return rom_secure_call(gpio, bits, 0, 0, BOOTROM_API_CALLBACK_pads_bank0_set_bits);
 }
@@ -1113,7 +1119,7 @@ static inline int pads_bank0_set_bits(uint gpio, uint bits) {
  * \param gpio the GPIO number
  * \param bits the bits to clear
  */
-#if PICO_ADD_NONSECURE_PADS_HELPER
+#if PICO_ADD_NONSECURE_PADS_HELPER && PICO_NONSECURE
 static inline int pads_bank0_clear_bits(uint gpio, uint bits) {
     return rom_secure_call(gpio, bits, 0, 0, BOOTROM_API_CALLBACK_pads_bank0_clear_bits);
 }
@@ -1131,7 +1137,7 @@ static inline int pads_bank0_clear_bits(uint gpio, uint bits) {
  * \param bits the bits to write
  * \param mask the mask
  */
-#if PICO_ADD_NONSECURE_PADS_HELPER
+#if PICO_ADD_NONSECURE_PADS_HELPER && PICO_NONSECURE
 static inline int pads_bank0_write_masked(uint gpio, uint bits, uint mask) {
     return rom_secure_call(gpio, bits, mask, 0, BOOTROM_API_CALLBACK_pads_bank0_write_masked);
 }
@@ -1148,7 +1154,7 @@ static inline int pads_bank0_write_masked(uint gpio, uint bits, uint mask) {
  * \param gpio the GPIO number
  * \return the bits read
  */
-#if PICO_ADD_NONSECURE_PADS_HELPER
+#if PICO_ADD_NONSECURE_PADS_HELPER && PICO_NONSECURE
 static inline int pads_bank0_read(uint gpio) {
     return rom_secure_call(gpio, 0, 0, 0, BOOTROM_API_CALLBACK_pads_bank0_read);
 }
@@ -1157,9 +1163,8 @@ static inline int pads_bank0_read(uint gpio) {
     return pads_bank0_hw->io[gpio];
 }
 #endif
-#endif
 
-#endif
+#endif  // ifndef __riscv
 
 #define BOOT_TYPE_NORMAL     0
 #define BOOT_TYPE_BOOTSEL    2

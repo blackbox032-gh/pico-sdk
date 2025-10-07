@@ -30,7 +30,7 @@
 #include "hardware/gpio_coproc.h"
 #endif
 
-#if PICO_NONSECURE
+#if PICO_SECURE || PICO_NONSECURE
 #include "pico/bootrom.h" // uses helper functions due to Errata RP2350-E3
 #else
 #define pads_bank0_set_bits(gpio, bits) hw_set_bits(&pads_bank0_hw->io[gpio], bits)
