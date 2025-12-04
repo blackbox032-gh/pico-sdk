@@ -60,6 +60,18 @@ void secure_sau_set_enabled(bool enabled) {
 }
 
 
+#if defined(PICO_SECURITY_SPLIT_CONFIGURED)
+void secure_sau_configure_split() {
+#if defined(PICO_SECURITY_SPLIT_SIMPLE)
+    // XIP is NS Code
+    secure_sau_configure_region(0, XIP_BASE, XIP_END, true, false);
+    // SRAM after secure code is NS data
+    secure_sau_configure_region(1, SRAM_BASE + PICO_SECURITY_SPLIT_SIMPLE_SECURE_LENGTH, SRAM_END, true, false);
+#endif
+}
+#endif
+
+
 static secure_hardfault_callback_t hardfault_callback = NULL;
 
 
