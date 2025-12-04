@@ -43,6 +43,14 @@ void secure_sau_configure_region(uint region, uint32_t base, uint32_t limit, boo
  * Configures the default security split configuration, based on the split configured with pico_set_security_ram_split
  */
 void secure_sau_configure_split(void);
+
+
+/*! \brief  Launch non-secure binary from default location
+ *  \ingroup pico_secure
+ *
+ * Launches non-secure binary from the default location, based on the split configured with pico_set_security_ram_split
+ */
+void secure_launch_nonsecure_binary_default(void);
 #endif
 
 /*! \brief  Set SAU enabled

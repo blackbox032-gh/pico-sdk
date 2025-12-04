@@ -71,29 +71,38 @@ if (NOT TARGET pico_secure)
     #
     # Set ram split for a secure and non-secure target, so they don't use the same memory.
     #
-    # Each split option requires arguments to specify the memory sizes
+    # Each split type option requires arguments to specify the memory sizes. You can only select
+    # one split type
     #
-    # The split options are:
+    # The split types available are:
     # - SIMPLE <SECURE_LENGTH> <SECURE_SCRATCH_LENGTH>: Secure using start of main SRAM, NonSecure using end of main SRAM and scratch
+    # - SCRATCH_EACH <SECURE_LENGTH>: Secure using start of main SRAM plus scratch X as stack, NonSecure using end of main SRAM plus scratch Y as stack
+    # - SECURE_SCRATCH <SECURE_LENGTH> <NONSECURE_SCRATCH_LENGTH>: Secure using start of main SRAM plus all of scratch, NonSecure using end of main SRAM
     #
     # \param\ SECURE_TARGET The secure target
     # \param\ NONSECURE_TARGET The non-secure target
     # \param\ OPTIONS The options to set
     function(pico_set_security_ram_split SECURE_TARGET NONSECURE_TARGET)
-        set(multiValueArgs SIMPLE)
+        set(multiValueArgs SIMPLE SCRATCH_EACH SECURE_SCRATCH)
         cmake_parse_arguments(PARSE_ARGV 2 OPTS "" "" "${multiValueArgs}")
 
+        set(HAS_SPLIT_TYPE FALSE)
         foreach(arg IN LISTS multiValueArgs)
             if (OPTS_${arg})
+                if (HAS_SPLIT_TYPE)
+                    message(FATAL_ERROR "Multiple split types passed to pico_set_security_ram_split")
+                endif()
+                set(HAS_SPLIT_TYPE TRUE)
             endif()
         endforeach()
 
+        if (NOT HAS_SPLIT_TYPE)
+            message(FATAL_ERROR "No split type passed to pico_set_security_ram_split")
+        endif()
+
         if (OPTS_SIMPLE)
-            message("OPTS_SIMPLE ${OPTS_SIMPLE}")
             list(GET OPTS_SIMPLE 0 SECURE_LENGTH)
             list(GET OPTS_SIMPLE 1 SECURE_SCRATCH_LENGTH)
-
-            message("SECURE_LENGTH ${SECURE_LENGTH} SECURE_SCRATCH_LENGTH ${SECURE_SCRATCH_LENGTH}")
 
             pico_set_linker_script_var(${SECURE_TARGET} RAM_ORIGIN "RAM_ORIGIN_DEFAULT")
             pico_set_linker_script_var(${SECURE_TARGET} RAM_LENGTH "${SECURE_LENGTH}-(${SECURE_SCRATCH_LENGTH}*2)")
@@ -105,7 +114,34 @@ if (NOT TARGET pico_secure)
             pico_set_linker_script_var(${NONSECURE_TARGET} RAM_ORIGIN "RAM_ORIGIN_DEFAULT+${SECURE_LENGTH}")
             pico_set_linker_script_var(${NONSECURE_TARGET} RAM_LENGTH "RAM_LENGTH_DEFAULT-${SECURE_LENGTH}")
 
-            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_SIMPLE=1 PICO_SECURITY_SPLIT_SIMPLE_SECURE_LENGTH=${SECURE_LENGTH})
+            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_SIMPLE=1)
+        elseif(OPTS_SCRATCH_EACH)
+            list(GET OPTS_SCRATCH_EACH 0 SECURE_LENGTH)
+
+            pico_set_linker_script_var(${SECURE_TARGET} RAM_ORIGIN "RAM_ORIGIN_DEFAULT")
+            pico_set_linker_script_var(${SECURE_TARGET} RAM_LENGTH "${SECURE_LENGTH}-SCRATCH_X_LENGTH_DEFAULT")
+            pico_set_linker_script_var(${SECURE_TARGET} SCRATCH_X_ORIGIN "RAM_ORIGIN+RAM_LENGTH")
+            pico_set_linker_script_var(${SECURE_TARGET} SCRATCH_Y_ORIGIN "SCRATCH_X_ORIGIN_DEFAULT")
+
+            pico_set_linker_script_var(${NONSECURE_TARGET} RAM_ORIGIN "RAM_ORIGIN_DEFAULT+${SECURE_LENGTH}")
+            pico_set_linker_script_var(${NONSECURE_TARGET} RAM_LENGTH "RAM_LENGTH_DEFAULT-${SECURE_LENGTH}-SCRATCH_X_LENGTH_DEFAULT")
+            pico_set_linker_script_var(${NONSECURE_TARGET} SCRATCH_X_ORIGIN "RAM_ORIGIN+RAM_LENGTH")
+
+            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_SCRATCH_EACH=1)
+        elseif(OPTS_SECURE_SCRATCH)
+            list(GET OPTS_SECURE_SCRATCH 0 SECURE_LENGTH)
+            list(GET OPTS_SECURE_SCRATCH 1 NONSECURE_SCRATCH_LENGTH)
+
+            pico_set_linker_script_var(${SECURE_TARGET} RAM_LENGTH "${SECURE_LENGTH}")
+
+            pico_set_linker_script_var(${NONSECURE_TARGET} RAM_ORIGIN "RAM_ORIGIN_DEFAULT+${SECURE_LENGTH}")
+            pico_set_linker_script_var(${NONSECURE_TARGET} RAM_LENGTH "RAM_LENGTH_DEFAULT-${SECURE_LENGTH}-(${NONSECURE_SCRATCH_LENGTH}*2)")
+            pico_set_linker_script_var(${NONSECURE_TARGET} SCRATCH_X_ORIGIN "RAM_ORIGIN+RAM_LENGTH")
+            pico_set_linker_script_var(${NONSECURE_TARGET} SCRATCH_X_LENGTH ${NONSECURE_SCRATCH_LENGTH})
+            pico_set_linker_script_var(${NONSECURE_TARGET} SCRATCH_Y_ORIGIN "SCRATCH_X_ORIGIN+SCRATCH_X_LENGTH")
+            pico_set_linker_script_var(${NONSECURE_TARGET} SCRATCH_Y_LENGTH SCRATCH_X_LENGTH)
+
+            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_SECURE_SCRATCH=1)
         endif()
 
         target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_CONFIGURED=1)
