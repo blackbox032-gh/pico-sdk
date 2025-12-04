@@ -79,12 +79,16 @@ if (NOT TARGET pico_secure)
     # - SCRATCH_EACH <SECURE_LENGTH>: Secure using start of main SRAM plus scratch X as stack, NonSecure using end of main SRAM plus scratch Y as stack
     # - SECURE_SCRATCH <SECURE_LENGTH> <NONSECURE_SCRATCH_LENGTH>: Secure using start of main SRAM plus all of scratch, NonSecure using end of main SRAM
     #
+    # Additional options are:
+    # - NO_FLASH: Assumes NS VTOR is at start of it's SRAM region, rather than at the start of flash
+    #
     # \param\ SECURE_TARGET The secure target
     # \param\ NONSECURE_TARGET The non-secure target
     # \param\ OPTIONS The options to set
     function(pico_set_security_ram_split SECURE_TARGET NONSECURE_TARGET)
+        set(options NO_FLASH)
         set(multiValueArgs SIMPLE SCRATCH_EACH SECURE_SCRATCH)
-        cmake_parse_arguments(PARSE_ARGV 2 OPTS "" "" "${multiValueArgs}")
+        cmake_parse_arguments(PARSE_ARGV 2 OPTS "${options}" "" "${multiValueArgs}")
 
         set(HAS_SPLIT_TYPE FALSE)
         foreach(arg IN LISTS multiValueArgs)
@@ -145,6 +149,12 @@ if (NOT TARGET pico_secure)
         endif()
 
         target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_CONFIGURED=1)
+
+        if (OPTS_NO_FLASH)
+            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_NO_FLASH=1)
+        else()
+            target_compile_definitions(${SECURE_TARGET} PRIVATE PICO_SECURITY_SPLIT_NO_FLASH=0)
+        endif()
 
     endfunction()
 endif()

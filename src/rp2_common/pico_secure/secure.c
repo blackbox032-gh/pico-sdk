@@ -61,43 +61,53 @@ void secure_sau_set_enabled(bool enabled) {
 
 
 #if defined(PICO_SECURITY_SPLIT_CONFIGURED)
+static uint32_t nonsecure_ram_start = 0;
+
 void secure_sau_configure_split() {
-#if defined(PICO_SECURITY_SPLIT_SIMPLE)
+#if !PICO_SECURITY_SPLIT_NO_FLASH
     // XIP is NS Code
     secure_sau_configure_region(0, XIP_BASE, XIP_END, true, false);
+#endif
+
+#if defined(PICO_SECURITY_SPLIT_SIMPLE)
     // SRAM after secure stack is NS data
     extern uint32_t __StackTop;
     secure_sau_configure_region(1, (uint32_t)&__StackTop, SRAM_END, true, false);
+    nonsecure_ram_start = (uint32_t)&__StackTop;
 #elif defined(PICO_SECURITY_SPLIT_SCRATCH_EACH)
-    // XIP is NS Code
-    secure_sau_configure_region(0, XIP_BASE, XIP_END, true, false);
     // Main SRAM after secure scratch X is NS data
     extern uint32_t __StackOneTop;
     secure_sau_configure_region(1, (uint32_t)&__StackOneTop, SRAM_STRIPED_END, true, false);
+    nonsecure_ram_start = (uint32_t)&__StackOneTop;
     // Scratch after secure stack in NS stack
     extern uint32_t __StackTop;
     secure_sau_configure_region(2, (uint32_t)&__StackTop, SRAM_END, true, false);
 #elif defined(PICO_SECURITY_SPLIT_SECURE_SCRATCH)
-    // XIP is NS Code
-    secure_sau_configure_region(0, XIP_BASE, XIP_END, true, false);
     // Main SRAM after secure heap is NS data
     extern uint32_t __HeapLimit;
     secure_sau_configure_region(1, (uint32_t)&__HeapLimit, SRAM_STRIPED_END, true, false);
+    nonsecure_ram_start = (uint32_t)&__HeapLimit;
 #endif
 }
 
 
 void __attribute__((noreturn)) secure_launch_nonsecure_binary_default() {
+#if PICO_SECURITY_SPLIT_NO_FLASH
+    uint32_t nonsecure_vtor = nonsecure_ram_start;
+#else
+    uint32_t nonsecure_vtor = XIP_BASE;
+#endif
+
 #if defined(PICO_SECURITY_SPLIT_SIMPLE)
     // Nonsecure running from XIP, stack limit is bottom of scratch
-    secure_launch_nonsecure_binary(XIP_BASE, SRAM_SCRATCH_X_BASE);
+    secure_launch_nonsecure_binary(nonsecure_vtor, SRAM_SCRATCH_X_BASE);
 #elif defined(PICO_SECURITY_SPLIT_SCRATCH_EACH)
     // Nonsecure running from XIP, stack limit is bottom of scratch Y
-    secure_launch_nonsecure_binary(XIP_BASE, SRAM_SCRATCH_Y_BASE);
+    secure_launch_nonsecure_binary(nonsecure_vtor, SRAM_SCRATCH_Y_BASE);
 #elif defined(PICO_SECURITY_SPLIT_SECURE_SCRATCH)
     // Nonsecure running from XIP, stack limit is secure heap limit
     extern uint32_t __HeapLimit;
-    secure_launch_nonsecure_binary(XIP_BASE, (uint32_t)&__HeapLimit);
+    secure_launch_nonsecure_binary(nonsecure_vtor, (uint32_t)&__HeapLimit);
 #endif
 }
 #endif
