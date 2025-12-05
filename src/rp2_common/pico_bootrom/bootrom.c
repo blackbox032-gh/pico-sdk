@@ -504,6 +504,9 @@ int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_
     switch (fn) {
     #if PICO_ALLOW_NONSECURE_STDIO
         case SECURE_CALL_stdio_out_chars: {
+            uint32_t ok = RCP_MASK_FALSE;
+            rom_validate_ns_buffer((char*)a, b, RCP_MASK_TRUE, &ok);
+            if (ok != RCP_MASK_TRUE) return BOOTROM_ERROR_NOT_PERMITTED;
             stdio_put_string((char*)a, b, false, true);
             stdio_flush();
             return BOOTROM_OK;
