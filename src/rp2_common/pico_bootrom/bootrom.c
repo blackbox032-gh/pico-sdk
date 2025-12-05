@@ -563,19 +563,19 @@ int rom_default_callback(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_
             return clock_get_hz(a);
         }
     #if PICO_ALLOW_NONSECURE_RESETS
-        case SECURE_CALL_reset_block_reg_mask: {
-            if (b & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
-            reset_block_reg_mask((volatile io_rw_32 *)a, b);
+        case SECURE_CALL_reset_block_mask: {
+            if (a & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
+            reset_block_mask(a);
             return BOOTROM_OK;
         }
-        case SECURE_CALL_unreset_block_reg_mask: {
-            if (b & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
-            unreset_block_reg_mask((volatile io_rw_32 *)a, b);
+        case SECURE_CALL_unreset_block_mask: {
+            if (a & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
+            unreset_block_mask(a);
             return BOOTROM_OK;
         }
-        case SECURE_CALL_unreset_block_reg_mask_wait_blocking: {
-            if (c & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
-            unreset_block_reg_mask_wait_blocking((volatile io_rw_32 *)a, (const volatile io_ro_32 *)b, c);
+        case SECURE_CALL_unreset_block_mask_wait_blocking: {
+            if (a & ~PICO_ALLOW_NONSECURE_RESETS_MASK) return BOOTROM_ERROR_NOT_PERMITTED;
+            unreset_block_mask_wait_blocking(a);
             return BOOTROM_OK;
         }
     #endif

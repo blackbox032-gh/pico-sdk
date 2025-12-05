@@ -1248,14 +1248,14 @@ static inline int pads_bank0_read(uint gpio) {
 #endif
 
 #if PICO_ALLOW_NONSECURE_RESETS && PICO_NONSECURE
-static inline int reset_block_reg_mask(io_rw_32 *reset, uint32_t mask) {
-    return rom_secure_call(reset, mask, 0, 0, SECURE_CALL_reset_block_reg_mask);
+static inline int reset_block_reg_mask(__unused io_rw_32 *reset, uint32_t mask) {
+    return rom_secure_call(mask, 0, 0, 0, SECURE_CALL_reset_block_mask);
 }
-static inline int unreset_block_reg_mask(io_rw_32 *reset, uint32_t mask) {
-    return rom_secure_call(reset, mask, 0, 0, SECURE_CALL_unreset_block_reg_mask);
+static inline int unreset_block_reg_mask(__unused io_rw_32 *reset, uint32_t mask) {
+    return rom_secure_call(mask, 0, 0, 0, SECURE_CALL_unreset_block_mask);
 }
-static inline int unreset_block_reg_mask_wait_blocking(io_rw_32 *reset, io_ro_32 *reset_done, uint32_t mask) {
-    return rom_secure_call(reset, reset_done, mask, 0, SECURE_CALL_unreset_block_reg_mask_wait_blocking);
+static inline int unreset_block_reg_mask_wait_blocking(__unused io_rw_32 *reset, __unused io_ro_32 *reset_done, uint32_t mask) {
+    return rom_secure_call(mask, 0, 0, 0, SECURE_CALL_unreset_block_mask_wait_blocking);
 }
 #endif
 
