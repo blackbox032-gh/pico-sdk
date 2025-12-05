@@ -203,6 +203,8 @@ PICO_RUNTIME_INIT_FUNC_PER_CORE(runtime_init_nonsecure_coprocessors, PICO_RUNTIM
 
 #if !PICO_RUNTIME_NO_INIT_NONSECURE_ACCESSCTRL_AND_IRQS
 void __weak runtime_init_nonsecure_accessctrl_and_irqs() {
+    rom_set_ns_api_permission(BOOTROM_NS_API_get_sys_info, true);
+
     #if PICO_ALLOW_NONSECURE_DMA
         accessctrl_hw->dma |= 0xacce0000 | ACCESSCTRL_DMA_NSP_BITS | ACCESSCTRL_DMA_NSU_BITS;
     #endif
