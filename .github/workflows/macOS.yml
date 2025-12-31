@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-12
+    runs-on: macos-latest
     steps:
       - name: Clean workspace
         run: |
@@ -17,14 +17,13 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout submodules
         run: git submodule update --init
       - name: Install dependencies
         run: |
           brew install cmake
-          brew tap ArmMbed/homebrew-formulae
-          brew install arm-none-eabi-gcc
+          brew install --cask gcc-arm-embedded
 
       - name: Build Project
         # bash required otherwise this mysteriously (no error) fails at "Generating cyw43_bus_pio_spi.pio.h"

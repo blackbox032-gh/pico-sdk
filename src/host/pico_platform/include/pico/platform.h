@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifdef __unix__
+#if defined __unix__ && defined __GLIBC__
 
 #include <sys/cdefs.h>
 
@@ -47,7 +47,7 @@ extern void tight_loop_contents();
 #define __STRING(x) #x
 #endif
 
-#ifndef _MSC_VER
+#if !defined(_MSC_VER) || defined(__clang__)
 #ifndef __noreturn
 #define __noreturn __attribute((noreturn))
 #endif
@@ -60,6 +60,12 @@ extern void tight_loop_contents();
 #define __noinline __attribute__((noinline))
 #endif
 
+#ifndef __force_inline
+// don't think it is critical to inline in host mode, and this is simpler than picking the
+// correct attribute incantation for always_inline on different compiler versions
+#define __force_inline inline
+#endif
+
 #ifndef __aligned
 #define __aligned(x) __attribute__((aligned(x)))
 #endif
@@ -67,6 +73,9 @@ extern void tight_loop_contents();
 #define PICO_WEAK_FUNCTION_DEF(x) _Pragma(__STRING(weak x))
 #define PICO_WEAK_FUNCTION_IMPL_NAME(x) x
 
+#ifndef __weak
+#define __weak __attribute__((weak))
+#endif
 #else
 #ifndef __noreturn
 #define __noreturn __declspec(noreturn)
@@ -145,7 +154,11 @@ uint get_core_num();
 
 static inline uint __get_current_exception(void) {
     return 0;
+
 }
+
+void busy_wait_at_least_cycles(uint32_t minimum_cycles);
+
 #ifdef __cplusplus
 }
 #endif

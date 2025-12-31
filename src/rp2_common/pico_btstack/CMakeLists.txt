@@ -1,3 +1,4 @@
+# PICO_CMAKE_CONFIG: PICO_BTSTACK_PATH, Path to BTstack. Can be passed to CMake or set in your environment if you do not wish to use the version included with the SDK, type=string, default=<PICO_SDK_PATH>/lib/btstack, group=pico_btstack
 if (DEFINED ENV{PICO_BTSTACK_PATH} AND (NOT PICO_BTSTACK_PATH))
     set(PICO_BTSTACK_PATH $ENV{PICO_BTSTACK_PATH})
     message("Using PICO_BTSTACK_PATH from environment ('${PICO_BTSTACK_PATH}')")
@@ -5,7 +6,7 @@ endif ()
 
 set(BTSTACK_TEST_PATH "src/bluetooth.h")
 if (NOT PICO_BTSTACK_PATH)
-    set(PICO_BTSTACK_PATH ${PROJECT_SOURCE_DIR}/lib/btstack)
+    set(PICO_BTSTACK_PATH ${PICO_SDK_PATH}/lib/btstack)
     if (PICO_CYW43_SUPPORTED AND NOT EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
         message(WARNING "btstack submodule has not been initialized; Pico W BLE support will be unavailable.
             hint: try 'git submodule update --init' from your SDK directory (${PICO_SDK_PATH}).")
@@ -20,7 +21,7 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
     pico_register_common_scope_var(PICO_BTSTACK_PATH)
 
     pico_add_library(pico_btstack_base NOFLAG)
-    target_include_directories(pico_btstack_base_headers INTERFACE
+    target_include_directories(pico_btstack_base_headers SYSTEM INTERFACE
         ${PICO_BTSTACK_PATH}/src
         ${PICO_BTSTACK_PATH}/platform/embedded
         )
@@ -28,7 +29,6 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
     target_sources(pico_btstack_base INTERFACE
         ${PICO_BTSTACK_PATH}/3rd-party/micro-ecc/uECC.c
         ${PICO_BTSTACK_PATH}/3rd-party/rijndael/rijndael.c
-        ${PICO_BTSTACK_PATH}/3rd-party/segger-rtt/SEGGER_RTT.c
         ${PICO_BTSTACK_PATH}/3rd-party/segger-rtt/SEGGER_RTT_printf.c
         ${PICO_BTSTACK_PATH}/platform/embedded/btstack_tlv_flash_bank.c
         ${PICO_BTSTACK_PATH}/platform/embedded/hci_dump_embedded_stdout.c
@@ -37,6 +37,7 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
         ${PICO_BTSTACK_PATH}/src/btstack_audio.c
         ${PICO_BTSTACK_PATH}/src/btstack_base64_decoder.c
         ${PICO_BTSTACK_PATH}/src/btstack_crypto.c
+        ${PICO_BTSTACK_PATH}/src/btstack_hid.c
         ${PICO_BTSTACK_PATH}/src/btstack_hid_parser.c
         ${PICO_BTSTACK_PATH}/src/btstack_linked_list.c
         ${PICO_BTSTACK_PATH}/src/btstack_memory.c
@@ -55,19 +56,26 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
         ${PICO_BTSTACK_PATH}/src/hci_event.c
         ${PICO_BTSTACK_PATH}/src/l2cap.c
         ${PICO_BTSTACK_PATH}/src/l2cap_signaling.c
-        ${PICO_BTSTACK_PATH}/src/mesh/gatt-service/mesh_provisioning_service_server.c
-        ${PICO_BTSTACK_PATH}/src/mesh/gatt-service/mesh_proxy_service_server.c
         ${PICO_BTSTACK_PATH}/3rd-party/md5/md5.c
         ${PICO_BTSTACK_PATH}/3rd-party/yxml/yxml.c
         ${CMAKE_CURRENT_LIST_DIR}/btstack_stdin_pico.c
     )
-    target_include_directories(pico_btstack_base_headers INTERFACE
+    # pico-sdk now supports RTT using pico_enable_stdio_rtt in your cmake file or -DPICO_STDIO_RTT=1 on the command line
+    # Then the output of printf goes to RTT. But if you define ENABLE_SEGGER_RTT=1 it will use the btstack functionality to use RTT
+    # and we'll have to add the source file it requires.
+    target_sources(pico_btstack_base INTERFACE
+        $<IF:$<BOOL:$<IF:$<STREQUAL:$<TARGET_PROPERTY:PICO_TARGET_STDIO_RTT>,>,${PICO_STDIO_RTT},$<TARGET_PROPERTY:PICO_TARGET_STDIO_RTT>>>,,${PICO_BTSTACK_PATH}/3rd-party/segger-rtt/SEGGER_RTT.c>
+    )
+
+    target_include_directories(pico_btstack_base_headers SYSTEM INTERFACE
         ${PICO_BTSTACK_PATH}/
         ${PICO_BTSTACK_PATH}/3rd-party/md5
         ${PICO_BTSTACK_PATH}/3rd-party/yxml
         ${PICO_BTSTACK_PATH}/3rd-party/rijndael
         ${PICO_BTSTACK_PATH}/3rd-party/micro-ecc
         ${PICO_BTSTACK_PATH}/3rd-party/segger-rtt
+        ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/encoder/include
+        ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/decoder/include
     )
 
     pico_add_library(pico_btstack_ble)
@@ -99,6 +107,13 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
     target_compile_definitions(pico_btstack_ble_headers INTERFACE
             ENABLE_BLE=1
             )
+
+    # Added in v1.6.2
+    if (EXISTS ${PICO_BTSTACK_PATH}/src/hci_event_builder.c)
+        target_sources(pico_btstack_ble INTERFACE
+            ${PICO_BTSTACK_PATH}/src/hci_event_builder.c
+        )
+    endif()
 
     pico_add_library(pico_btstack_classic)
     target_sources(pico_btstack_classic INTERFACE
@@ -154,19 +169,76 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
             ENABLE_CLASSIC=1
             )
 
+    # Added in v1.6.2
+    if (EXISTS ${PICO_BTSTACK_PATH}/src/classic/obex_srm_client.c)
+        target_sources(pico_btstack_classic INTERFACE
+            ${PICO_BTSTACK_PATH}/src/classic/obex_srm_client.c
+        )
+    endif()
+
+    pico_add_library(pico_btstack_mesh)
+    target_sources(pico_btstack_mesh INTERFACE
+        ${PICO_BTSTACK_PATH}/src/mesh/adv_bearer.c
+        ${PICO_BTSTACK_PATH}/src/mesh/beacon.c
+        ${PICO_BTSTACK_PATH}/src/mesh/gatt_bearer.c
+        ${PICO_BTSTACK_PATH}/src/mesh/gatt-service/mesh_provisioning_service_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/gatt-service/mesh_proxy_service_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_access.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_configuration_client.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_configuration_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_crypto.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_foundation.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_default_transition_time_client.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_default_transition_time_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_level_client.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_level_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_on_off_client.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_generic_on_off_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_health_server.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_iv_index_seq_number.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_keys.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_lower_transport.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_network.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_node.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_peer.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_proxy.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_upper_transport.c
+        ${PICO_BTSTACK_PATH}/src/mesh/mesh_virtual_addresses.c
+        ${PICO_BTSTACK_PATH}/src/mesh/pb_adv.c
+        ${PICO_BTSTACK_PATH}/src/mesh/pb_gatt.c
+        ${PICO_BTSTACK_PATH}/src/mesh/provisioning.c
+        ${PICO_BTSTACK_PATH}/src/mesh/provisioning_device.c
+        ${PICO_BTSTACK_PATH}/src/mesh/provisioning_provisioner.c
+    )
+    pico_mirrored_target_link_libraries(pico_btstack_mesh INTERFACE
+        pico_btstack_ble
+    )
+    target_compile_definitions(pico_btstack_mesh_headers INTERFACE
+            ENABLE_MESH=1
+            )
+
     pico_add_library(pico_btstack_flash_bank)
     target_sources(pico_btstack_flash_bank INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/btstack_flash_bank.c
     )
-    target_include_directories(pico_btstack_flash_bank_headers INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
+    target_include_directories(pico_btstack_flash_bank_headers SYSTEM INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
     pico_mirrored_target_link_libraries(pico_btstack_flash_bank INTERFACE pico_btstack_base pico_flash)
 
     pico_add_library(pico_btstack_run_loop_async_context NOFLAG)
     target_sources(pico_btstack_run_loop_async_context INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/btstack_run_loop_async_context.c
     )
-    target_include_directories(pico_btstack_run_loop_async_context_headers INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
+    target_include_directories(pico_btstack_run_loop_async_context_headers SYSTEM INTERFACE ${CMAKE_CURRENT_LIST_DIR}/include)
     pico_mirrored_target_link_libraries(pico_btstack_run_loop_async_context INTERFACE pico_btstack_base pico_async_context_base)
+
+    pico_add_library(pico_btstack_sbc_common NOFLAG)
+    set(SBC_BLUEDROID "src/classic/btstack_sbc_bluedroid.c")
+    if(EXISTS ${PICO_BTSTACK_PATH}/${SBC_BLUEDROID}) # Added in 1.6.x
+        target_sources(pico_btstack_sbc_common INTERFACE
+                ${PICO_BTSTACK_PATH}/${SBC_BLUEDROID}
+                )
+    endif()
 
     pico_add_library(pico_btstack_sbc_encoder NOFLAG)
     target_sources(pico_btstack_sbc_encoder INTERFACE
@@ -181,8 +253,8 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
             ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/encoder/srce/sbc_encoder.c
             ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/encoder/srce/sbc_packing.c
             )
-    target_include_directories(pico_btstack_sbc_encoder_headers INTERFACE
-            ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/encoder/include
+    pico_mirrored_target_link_libraries(pico_btstack_sbc_encoder INTERFACE
+            pico_btstack_sbc_common
             )
 
     pico_add_library(pico_btstack_sbc_decoder NOFLAG)
@@ -203,8 +275,8 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
             ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/decoder/srce/synthesis-dct8.c
             ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/decoder/srce/synthesis-8-generated.c
             )
-    target_include_directories(pico_btstack_sbc_decoder_headers INTERFACE
-            ${PICO_BTSTACK_PATH}/3rd-party/bluedroid/decoder/include
+    pico_mirrored_target_link_libraries(pico_btstack_sbc_decoder INTERFACE
+            pico_btstack_sbc_common
             )
 
     pico_add_library(pico_btstack_bnep_lwip NOFLAG)
@@ -212,12 +284,12 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
             ${PICO_BTSTACK_PATH}/src/classic/bnep.c
             ${PICO_BTSTACK_PATH}/platform/lwip/bnep_lwip.c
             )
-    target_include_directories(pico_btstack_bnep_lwip_headers INTERFACE
+    target_include_directories(pico_btstack_bnep_lwip_headers SYSTEM INTERFACE
             ${PICO_BTSTACK_PATH}/platform/lwip
             )
 
     pico_add_library(pico_btstack_bnep_lwip_sys_freertos NOFLAG)
-    target_include_directories(pico_btstack_bnep_lwip_sys_freertos INTERFACE
+    target_include_directories(pico_btstack_bnep_lwip_sys_freertos SYSTEM INTERFACE
             ${PICO_BTSTACK_PATH}/platform/freertos
             )
     pico_mirrored_target_link_libraries(pico_btstack_bnep_lwip_sys_freertos INTERFACE
@@ -230,23 +302,33 @@ if (EXISTS ${PICO_BTSTACK_PATH}/${BTSTACK_TEST_PATH})
 
     pico_promote_common_scope_vars()
 
-    # Make a GATT header file from a BTstack GATT file
-    # Pass the target library name library type and path to the GATT input file
+    # pico_btstack_make_gatt_header(TARGET_LIB TARGET_TYPE GATT_FILE)
+    # \brief\ Make a GATT header file from a BTstack GATT file.
+    #
+    # Pass the target library name, library type, and path to the GATT input file.
+    # To add additional directories to the gatt import path, add them to the end of the argument list.
+    #
+    # \param\ TARGET_LIB The target library name
+    # \param\ TARGET_TYPE The target library type
+    # \param\ GATT_FILE The path to the GATT input file
     function(pico_btstack_make_gatt_header TARGET_LIB TARGET_TYPE GATT_FILE)
             find_package (Python3 REQUIRED COMPONENTS Interpreter)
             get_filename_component(GATT_NAME "${GATT_FILE}" NAME_WE)
             get_filename_component(GATT_PATH "${GATT_FILE}" PATH)
-            set(GATT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-            set(GATT_HEADER "${GATT_BINARY_DIR}/${GATT_NAME}.h")
+            if (NOT GATT_PATH)
+                set(GATT_PATH "${CMAKE_CURRENT_LIST_DIR}")
+            endif()
             set(TARGET_GATT "${TARGET_LIB}_gatt_header")
-
+            set(GATT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/${TARGET_GATT}")
+            set(GATT_HEADER "${GATT_BINARY_DIR}/${GATT_NAME}.h")
+            list(TRANSFORM ARGN PREPEND "-I")
             add_custom_target(${TARGET_GATT} DEPENDS ${GATT_HEADER})
             add_custom_command(
                     OUTPUT ${GATT_HEADER}
                     DEPENDS ${GATT_FILE}
                     WORKING_DIRECTORY ${GATT_PATH}
                     COMMAND ${CMAKE_COMMAND} -E make_directory ${GATT_BINARY_DIR} &&
-                            ${Python3_EXECUTABLE} ${PICO_SDK_PATH}/lib/btstack/tool/compile_gatt.py ${GATT_FILE} ${GATT_HEADER}
+                            ${Python3_EXECUTABLE} ${PICO_SDK_PATH}/lib/btstack/tool/compile_gatt.py ${GATT_FILE} ${GATT_HEADER} ${ARGN}
                     VERBATIM)
             add_dependencies(${TARGET_LIB}
                     ${TARGET_GATT}

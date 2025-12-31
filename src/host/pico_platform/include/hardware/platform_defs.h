@@ -11,15 +11,21 @@
 
 #define NUM_DMA_CHANNELS 12u
 
-#define NUM_TIMERS 4u
+#define NUM_GENERIC_TIMERS 1u
+#define NUM_ALARMS 4u
 
 #define NUM_IRQS 32u
+#define NUM_USER_IRQS 6u
+#define FIRST_USER_IRQ (NUM_IRQS - NUM_USER_IRQS)
+#define VTABLE_FIRST_IRQ 16
 
 #define NUM_SPIN_LOCKS 32u
 
-#define XOSC_KHZ 12000u
+#define XOSC_HZ 12000000u
 
 #define NUM_SPIN_LOCKS 32u
+
+#define NUM_BANK0_GPIOS 30
 
 #ifndef _u
 #define _u(x) x ## u
